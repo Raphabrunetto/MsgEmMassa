@@ -1,186 +1,32 @@
-```html
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Disparo WhatsApp</title>
-
-  <!-- Biblioteca para ler Excel -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f6fa;
-      padding: 30px;
-    }
-
-    .container {
-      max-width: 500px;
-      margin: auto;
-      background: white;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-
-    textarea, input {
-      width: 100%;
-      padding: 10px;
-      margin-top: 10px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-    }
-
-    button {
-      width: 100%;
-      padding: 12px;
-      margin-top: 15px;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    #status {
-      margin-top: 10px;
-      text-align: center;
-      font-weight: bold;
-    }
-  </style>
+  <title>Disparo de Mensagens</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
 <div class="container">
-  <h2>Disparo de Mensagens</h2>
+  <h2>📩 Disparo de Mensagens</h2>
 
-  <p>Upload de CSV ou Excel:</p>
-  <input type="file" id="fileInput" accept=".csv, .xlsx">
+  <input type="file" id="imageInput" accept="image/*">
 
-  <p>Ou insira manualmente:</p>
-  <textarea id="numbers" rows="6"
-    placeholder="Ex:
-41999999999
-41988888888"></textarea>
+  <div class="preview" id="preview"></div>
 
-  <p>Total de números: <span id="count">0</span></p>
+  <textarea id="numbers" placeholder="Números (um por linha)"></textarea>
+  <div class="info">Total: <span id="total">0</span></div>
 
-  <p>Mensagem:</p>
-  <textarea id="message" rows="4"></textarea>
+  <textarea id="message" placeholder="Digite sua mensagem"></textarea>
 
-  <button onclick="send()">Enviar mensagens</button>
-
-  <p id="status"></p>
+  <button onclick="send()">Enviar</button>
 </div>
 
-<script>
-const textarea = document.getElementById("numbers");
-const count = document.getElementById("count");
-
-// CONTADOR
-textarea.addEventListener("input", updateCount);
-
-function updateCount() {
-  const nums = textarea.value
-    .split(/[\n,]+/)
-    .map(n => n.trim())
-    .filter(n => n !== "");
-
-  count.textContent = nums.length;
-}
-
-// UPLOAD
-document.getElementById("fileInput").addEventListener("change", handleFile);
-
-function handleFile(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-
-  if (file.name.endsWith(".csv")) {
-    reader.onload = function(evt) {
-      const text = evt.target.result;
-      processCSV(text);
-    };
-    reader.readAsText(file);
-
-  } else {
-    reader.onload = function(evt) {
-      const data = new Uint8Array(evt.target.result);
-      const workbook = XLSX.read(data, { type: "array" });
-
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-      const numbers = json
-        .map(row => row[0])
-        .filter(val => val);
-
-      textarea.value = numbers.join("\n");
-      updateCount();
-    };
-    reader.readAsArrayBuffer(file);
-  }
-}
-
-// PROCESSAR CSV
-function processCSV(text) {
-  const rows = text.split("\n");
-
-  const numbers = rows
-    .map(r => r.split(",")[0])
-    .map(n => n.trim())
-    .filter(n => n !== "");
-
-  textarea.value = numbers.join("\n");
-  updateCount();
-}
-
-// ENVIO
-async function send() {
-  const status = document.getElementById("status");
-
-  const numbers = textarea.value
-    .split(/[\n,]+/)
-    .map(n => n.trim())
-    .filter(n => n !== "");
-
-  const message = document.getElementById("message").value;
-
-  if (numbers.length === 0 || !message) {
-    status.textContent = "Preencha os dados.";
-    status.style.color = "red";
-    return;
-  }
-
-  status.textContent = "Enviando...";
-  status.style.color = "black";
-
-  try {
-    await fetch("https://hook.us2.make.com/SEU_WEBHOOK_AQUI", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        numbers: numbers,
-        message: message
-      })
-    });
-
-    status.textContent = "Enviado com sucesso!";
-    status.style.color = "green";
-
-  } catch (err) {
-    status.textContent = "Erro ao enviar.";
-    status.style.color = "red";
-  }
-}
-</script>
+<!-- ORDEM CORRETA -->
+<script src="config.js"></script>
+<script src="script.js"></script>
 
 </body>
 </html>
-```
+
