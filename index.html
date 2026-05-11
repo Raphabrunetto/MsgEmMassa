@@ -47,18 +47,25 @@
       </button>
     </div>
 
-    <div class="card dropzone" id="preview">
-      <span class="dropzone-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-          <path d="M12 4v12" stroke-linecap="round"/>
-          <path d="M8 10l4-4 4 4" stroke-linecap="round"/>
-          <path d="M6 18h12" stroke-linecap="round"/>
-        </svg>
-      </span>
-      <div class="dropzone-title">Arraste e solte a imagem aqui</div>
-      <div class="dropzone-subtitle">ou clique para selecionar • opcional</div>
-      <input type="file" id="imageInput" accept="image/*" hidden>
-    </div>
+   <div class="card dropzone" id="preview">
+
+  <!-- 🔥 BOTÃO REMOVER -->
+  <button id="removeImageBtn" class="remove-image-btn">✕</button>
+
+  <span class="dropzone-icon">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+      <path d="M12 4v12" stroke-linecap="round"/>
+      <path d="M8 10l4-4 4 4" stroke-linecap="round"/>
+      <path d="M6 18h12" stroke-linecap="round"/>
+    </svg>
+  </span>
+
+  <div class="dropzone-title">Arraste e solte a imagem aqui</div>
+  <div class="dropzone-subtitle">ou clique para selecionar • opcional</div>
+
+  <input type="file" id="imageInput" accept="image/*" hidden>
+
+</div>
 
     <div class="field">
       <div class="field-title">NÚMEROS</div>

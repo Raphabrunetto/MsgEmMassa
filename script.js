@@ -12,29 +12,69 @@ const dropdownEmpty = document.getElementById("dropdownEmpty");
 let isDropdownOpen = false;
 let currentSelectedListId = "";
 
-function getPhoneLists() {
-  return JSON.parse(localStorage.getItem("phoneLists") || "[]");
+// IndexedDB setup
+let db;
+
+function initDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("MsgEmMassaDB", 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      db = request.result;
+      resolve(db);
+    };
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains("phoneLists")) {
+        db.createObjectStore("phoneLists", { keyPath: "id" });
+      }
+    };
+  });
 }
 
-function savePhoneLists(lists) {
-  localStorage.setItem("phoneLists", JSON.stringify(lists));
+async function getPhoneLists() {
+  if (!db) await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(["phoneLists"], "readonly");
+    const store = transaction.objectStore("phoneLists");
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
 }
 
-function populateListSelect() {
-  const lists = getPhoneLists();
+async function savePhoneLists(lists) {
+  if (!db) await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(["phoneLists"], "readwrite");
+    const store = transaction.objectStore("phoneLists");
+    store.clear(); // Clear existing
+    lists.forEach(list => store.add(list));
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+async function populateListSelect() {
+  const lists = await getPhoneLists();
   const selectedId = localStorage.getItem("selectedPhoneListId") || "";
 
   // Atualizar select nativo (escondido)
   if (listSelect) {
-    listSelect.innerHTML = `<option value="">Selecionar lista...</option>`;
-    lists.forEach(list => {
-      const option = document.createElement("option");
-      option.value = list.id;
-      option.textContent = `${list.name} (${list.numbers.length})`;
-      listSelect.appendChild(option);
-    });
+  listSelect.innerHTML = `<option value="" disabled selected hidden>Escolha a lista</option>`;
+
+  lists.forEach(list => {
+    const option = document.createElement("option");
+    option.value = list.id;
+    option.textContent = `${list.name} (${list.numbers.length})`;
+    listSelect.appendChild(option);
+  });
+
+  // só aplica valor se tiver um válido
+  if (selectedId) {
     listSelect.value = selectedId;
   }
+}
 
   // Atualizar dropdown customizado
   listOptionsContainer.innerHTML = "";
@@ -66,8 +106,8 @@ function populateListSelect() {
   }
 }
 
-function selectPhoneList(listId) {
-  const lists = getPhoneLists();
+async function selectPhoneList(listId) {
+  const lists = await getPhoneLists();
   const selected = lists.find(list => list.id === listId);
 
   if (!selected) {
@@ -75,7 +115,7 @@ function selectPhoneList(listId) {
     localStorage.removeItem("selectedPhoneListId");
     numbersInput.value = "";
     totalSpan.textContent = 0;
-    populateListSelect();
+    await populateListSelect();
     closeDropdown();
     return;
   }
@@ -84,7 +124,7 @@ function selectPhoneList(listId) {
   localStorage.setItem("selectedPhoneListId", listId);
   numbersInput.value = selected.numbers.join("\n");
   totalSpan.textContent = selected.numbers.length;
-  populateListSelect();
+  await populateListSelect();
   closeDropdown();
 }
 
@@ -137,48 +177,56 @@ function updateCounts() {
 numbersInput.addEventListener("input", updateCounts);
 document.getElementById("message").addEventListener("input", updateCounts);
 
-// preview da imagem
+// =========================
+// PREVIEW DA IMAGEM (FIX REAL)
+// =========================
 if (imageInput && preview) {
-  const dropzoneText = preview.querySelector('.dropzone-text');
 
   function updateImagePreview(file) {
+    let img = preview.querySelector('img');
+
     if (!file) {
-      const img = preview.querySelector('img');
       if (img) img.remove();
       preview.classList.remove('has-image');
+      imageInput.value = "";
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      let img = preview.querySelector('img');
-      if (!img) {
-        img = document.createElement('img');
-        preview.appendChild(img);
-      }
-      img.src = reader.result;
-      preview.classList.add('has-image');
-      preview.classList.remove('dragover');
-    };
-    reader.readAsDataURL(file);
+    if (!img) {
+      img = document.createElement('img');
+      preview.appendChild(img);
+    }
+
+    img.src = URL.createObjectURL(file);
+
+    preview.classList.add('has-image');
+    preview.classList.remove('dragover');
   }
 
+  // 🔥 REMOVE BUTTON
+  const removeBtn = document.getElementById("removeImageBtn");
+
+  if (removeBtn) {
+    removeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      updateImagePreview(null);
+    });
+  }
+
+  // 🔥 INPUT FILE (UMA VEZ SÓ)
   imageInput.addEventListener('change', () => {
     const file = imageInput.files[0];
-    updateImagePreview(file);
+    if (file) updateImagePreview(file);
   });
 
+  // 🔥 CLICK DROPZONE (UMA VEZ)
   preview.addEventListener('click', () => {
     imageInput.click();
   });
 
-  preview.addEventListener('dragenter', event => {
-    event.preventDefault();
-    preview.classList.add('dragover');
-  });
-
-  preview.addEventListener('dragover', event => {
-    event.preventDefault();
+  // 🔥 DRAG
+  preview.addEventListener('dragover', (e) => {
+    e.preventDefault();
     preview.classList.add('dragover');
   });
 
@@ -186,16 +234,17 @@ if (imageInput && preview) {
     preview.classList.remove('dragover');
   });
 
-  preview.addEventListener('drop', event => {
-    event.preventDefault();
+  preview.addEventListener('drop', (e) => {
+    e.preventDefault();
     preview.classList.remove('dragover');
 
-    const file = event.dataTransfer.files[0];
+    const file = e.dataTransfer.files[0];
     if (!file || !file.type.startsWith('image/')) return;
 
     const dataTransfer = new DataTransfer();
     dataTransfer.items.add(file);
     imageInput.files = dataTransfer.files;
+
     updateImagePreview(file);
   });
 }
@@ -246,8 +295,8 @@ async function send() {
   alert("Disparo enviado 🚀");
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  populateListSelect();
+document.addEventListener("DOMContentLoaded", async () => {
+  await populateListSelect();
   updateCounts();
 
   // Efeito de pulso ao clicar nos botões

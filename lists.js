@@ -7,12 +7,47 @@ const saveListBtn = document.getElementById("saveListBtn");
 
 let editingId = null;
 
-function getPhoneLists() {
-  return JSON.parse(localStorage.getItem("phoneLists") || "[]");
+// IndexedDB setup (shared with script.js)
+let db;
+
+function initDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("MsgEmMassaDB", 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      db = request.result;
+      resolve(db);
+    };
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains("phoneLists")) {
+        db.createObjectStore("phoneLists", { keyPath: "id" });
+      }
+    };
+  });
 }
 
-function savePhoneLists(lists) {
-  localStorage.setItem("phoneLists", JSON.stringify(lists));
+async function getPhoneLists() {
+  if (!db) await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(["phoneLists"], "readonly");
+    const store = transaction.objectStore("phoneLists");
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function savePhoneLists(lists) {
+  if (!db) await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(["phoneLists"], "readwrite");
+    const store = transaction.objectStore("phoneLists");
+    store.clear(); // Clear existing
+    lists.forEach(list => store.add(list));
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
 }
 
 function generateId() {
@@ -31,8 +66,8 @@ function clearForm() {
   showMessage("");
 }
 
-function renderLists() {
-  const lists = getPhoneLists();
+async function renderLists() {
+  const lists = await getPhoneLists();
   listsContainer.innerHTML = "";
 
   if (lists.length === 0) {
@@ -56,7 +91,7 @@ function renderLists() {
   listCountSpan.textContent = lists.length;
 }
 
-function saveList() {
+async function saveList() {
   const name = listNameInput.value.trim();
   const numbers = listNumbersInput.value
     .split("\n")
@@ -73,14 +108,14 @@ function saveList() {
     return;
   }
 
-  const lists = getPhoneLists();
+  const lists = await getPhoneLists();
 
   if (editingId) {
     const index = lists.findIndex(list => list.id === editingId);
     if (index !== -1) {
       lists[index].name = name;
       lists[index].numbers = numbers;
-      savePhoneLists(lists);
+      await savePhoneLists(lists);
       showMessage("Lista atualizada com sucesso.");
     }
   } else {
@@ -90,16 +125,16 @@ function saveList() {
       numbers
     };
     lists.push(newList);
-    savePhoneLists(lists);
+    await savePhoneLists(lists);
     showMessage("Lista criada com sucesso.");
   }
 
   clearForm();
-  renderLists();
+  await renderLists();
 }
 
-function editList(id) {
-  const lists = getPhoneLists();
+async function editList(id) {
+  const lists = await getPhoneLists();
   const list = lists.find(item => item.id === id);
 
   if (!list) return;
@@ -111,23 +146,23 @@ function editList(id) {
   showMessage(`Editando lista: ${list.name}`);
 }
 
-function deleteList(id) {
+async function deleteList(id) {
   if (!confirm("Tem certeza que deseja apagar esta lista?")) return;
 
-  let lists = getPhoneLists();
+  let lists = await getPhoneLists();
   lists = lists.filter(list => list.id !== id);
-  savePhoneLists(lists);
+  await savePhoneLists(lists);
 
   if (localStorage.getItem("selectedPhoneListId") === id) {
     localStorage.removeItem("selectedPhoneListId");
   }
 
   clearForm();
-  renderLists();
+  await renderLists();
 }
 
-window.addEventListener("DOMContentLoaded", () => {
-  renderLists();
+window.addEventListener("DOMContentLoaded", async () => {
+  await renderLists();
 
   // Efeito de pulso ao clicar nos botões
   document.addEventListener("click", function (e) {
