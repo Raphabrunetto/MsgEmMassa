@@ -249,19 +249,38 @@ if (imageInput && preview) {
   });
 }
 
-// converter base64
-async function toBase64(file) {
+// =========================
+// BASE64 CORRETO (COM MIME)
+// =========================
+async function fileToBase64Data(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result.split(',')[1]);
+
+    reader.onload = () => {
+      const full = reader.result; // data:image/jpeg;base64,XXXX
+      const [meta, base64] = full.split(",");
+
+      const mimetype = meta.match(/data:(.*);base64/)[1];
+
+      resolve({
+        base64,
+        mimetype,
+        full // caso precise enviar completo
+      });
+    };
+
     reader.onerror = reject;
   });
 }
 
-// envio
+
+// =========================
+// ENVIO (COMPATÍVEL Z-API)
+// =========================
 async function send() {
   const file = imageInput.files[0];
+
   const numbers = numbersInput.value
     .split('\n')
     .map(n => n.trim())
@@ -274,23 +293,53 @@ async function send() {
     return;
   }
 
-  let imageBase64 = null;
+  let imageData = null;
 
   if (file) {
-    imageBase64 = await toBase64(file);
+    imageData = await fileToBase64Data(file);
+
+    console.log("Preview base64:", imageData.base64.slice(0, 50));
+    console.log("Mimetype:", imageData.mimetype);
   }
 
-  await fetch(WEBHOOK_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      numbers,
-      message,
-      image: imageBase64
-    })
-  });
+  // 🔥 ENVIO 1 POR 1 (ESSENCIAL PRA Z-API)
+  for (const number of numbers) {
+    try {
+
+      let payload;
+
+      // 👉 COM IMAGEM
+      if (imageData) {
+        payload = {
+          number: number,
+          image: imageData.base64,
+          mimetype: imageData.mimetype,
+          caption: message
+        };
+      } 
+      // 👉 SEM IMAGEM
+      else {
+        payload = {
+          number: number,
+          message: message
+        };
+      }
+
+      await fetch(WEBHOOK_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      // 🔥 Delay pra não bloquear (IMPORTANTE)
+      await new Promise(r => setTimeout(r, 800));
+
+    } catch (err) {
+      console.error("Erro ao enviar para", number, err);
+    }
+  }
 
   alert("Disparo enviado 🚀");
 }
