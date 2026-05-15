@@ -311,7 +311,7 @@ async function send() {
       // 👉 COM IMAGEM
       if (imageData) {
         payload = {
-          phone: number, // 🔥 MUDA AQUI (Z-API usa phone, não number)
+          phones: numbers, // 🔥 MUDA AQUI (Z-API usa phone, não number)
           image: imageData.base64, // já tá correto (SEM prefixo)
           caption: message
         };
@@ -319,7 +319,7 @@ async function send() {
       // 👉 SEM IMAGEM
       else {
         payload = {
-          number: number,
+          numbers: numbers,
           message: message
         };
       }
